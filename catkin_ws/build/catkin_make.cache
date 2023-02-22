@@ -1,2 +1,0 @@
-unitree_ros/robots/a1_description:unitree_ros/robots/aliengo_description:unitree_ros/robots/b1_description:unitree_ros/robots/go1_description:unitree_ros/robots/laikago_description:unitree_ros/robots/z1_description:unitree_ros/unitree_controller:unitree_ros/unitree_gazebo:unitree_ros/unitree_legged_control:unitree_ros_to_real/unitree_legged_msgs:unitree_ros_to_real/unitree_legged_real
--DCATKIN_DEVEL_PREFIX=/home/riyadh/Documents/GitHub/REXI/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/riyadh/Documents/GitHub/REXI/catkin_ws/install -G Unix Makefiles
