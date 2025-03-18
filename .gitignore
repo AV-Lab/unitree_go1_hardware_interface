@@ -1,0 +1,48 @@
+# Build directories
+build/
+devel/
+install/
+logs/
+log/
+.catkin_tools/
+
+# Compiled Object files
+*.o
+*.so
+*.a
+*.pyc
+*.pyo
+__pycache__/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ROS specific
+.catkin_workspace
+.rosinstall
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Project specific
+.history/

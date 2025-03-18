@@ -1,0 +1,11 @@
+<launch>
+    <arg name="port" default="/dev/ttyACM0" />
+    
+    <node name="arm_controller" pkg="sagittarius_control" type="arm_controller">
+        <param name="port" value="$(arg port)" />
+    </node>
+    
+    <node name="gripper_controller" pkg="sagittarius_control" type="gripper_controller">
+        <param name="port" value="$(arg port)" />
+    </node>
+</launch>

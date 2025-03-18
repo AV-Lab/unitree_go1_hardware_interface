@@ -1,0 +1,6 @@
+[submodule "k1_arm/ros_package/catkin_ws/src/sagittarius_sdk"]
+	path = k1_arm/ros_package/catkin_ws/src/sagittarius_sdk
+	url = https://github.com/NXROBO/sagittarius_sdk.git
+[submodule "k1_arm/sdk_control/sagittarius_sdk"]
+	path = k1_arm/sdk_control/sagittarius_sdk
+	url = https://github.com/NXROBO/sagittarius_sdk.git
