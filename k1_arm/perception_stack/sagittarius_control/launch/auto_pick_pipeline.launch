@@ -1,0 +1,21 @@
+<launch>
+  <arg name="robot_name" default="sgr532"/>
+  <arg name="robot_model" default="$(arg robot_name)"/>
+  <arg name="pre_pick_config" default="$(find sagittarius_control)/config/pre_pick_pose.yaml"/>
+
+  <!-- 1. Launch MoveIt and RViz -->
+  <include file="$(find sagittarius_moveit)/launch/sgr532_moveit_in_spark.launch">
+    <arg name="robot_name" value="$(arg robot_name)"/>
+    <arg name="robot_model" value="$(arg robot_model)"/>
+  </include>
+
+  <!-- 2. Pre-pick pose node -->
+  <node name="send_pre_pick_pose" pkg="sagittarius_control" type="send_pre_pick_pose.py" output="screen">
+    <param name="config_path" value="$(find sagittarius_control)/config/pre_pick_pose.yaml"/>
+  </node>
+
+  <!-- 3. Move to object and pick -->
+  <node name="move_to_object" pkg="sagittarius_control" type="move_to_object.py" output="screen">
+    <param name="pose_config" value="$(find sagittarius_control)/config/pre_pick_pose.yaml"/>
+  </node>
+</launch>
