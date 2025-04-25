@@ -1,0 +1,16 @@
+<launch>
+  <!-- Launch RealSense camera -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
+  
+  <arg name="color_name" default="green"/>
+
+  <!-- Launch object detection node -->
+  <node name="multi_color_object_detector"
+      pkg="sagittarius_control"
+      type="multi_color_object_detector.py"
+      output="screen">
+    <param name="color_name" value="$(arg color_name)"/>
+    <param name="color_config" value="$(find sagittarius_control)/config/color_config.yaml"/>
+  </node>
+
+</launch>
