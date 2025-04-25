@@ -36,7 +36,7 @@ perception_stack/
 - RealSense D435 camera
 - Sagittarius K1 robotic arm
 
-> ✅ Optional: Docker setup available (see below)
+If you want to containerize the stack, use this `docker-compose.yml` as a starting point.
 
 ---
 
@@ -104,51 +104,6 @@ Specifies starting and final pose values:
 
 ```yaml
 post_pick_rad: [0.0, 0.3, 0.0, 0.4, -1.8, 0.0]
-```
-
----
-
-## 🐳 Docker (Optional Template)
-
-If you want to containerize the stack, use this `docker-compose.yml` as a starting point:
-
-```yaml
-docker-compose.yml
-
-services:
-  ros:
-    image: ros:noetic
-    container_name: k1
-    network_mode: host
-    privileged: true
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /etc/localtime:/etc/localtime:ro
-      - /dev/:/dev/
-      - /dev/bus/usb:/dev/bus/usb
-      - /run/udev:/run/udev:ro
-    environment:
-      - color_prompt=yes
-      - DISPLAY
-      - TERM
-      - QT_X11_NO_MITSHM=1
-      - DRI_NAME=card1
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - NV_PRIME_RENDER_OFFLOAD=1
-      - GLX_VENDOR_LIBRARY_NAME=nvidia
-    tty: true
-    stdin_open: true
-    devices:
-      - /dev/:/dev/
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    runtime: nvidia
 ```
 
 ---

@@ -8,17 +8,16 @@ from visualization_msgs.msg import Marker
 from moveit_commander import MoveGroupCommander, RobotCommander, PlanningSceneInterface
 import moveit_commander
 import tf.transformations as tft
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, String
 from sdk_sagittarius_arm.msg import ArmRadControl
 import yaml
 import os
-from std_msgs.msg import String
-
 
 class MoveAndVisualizeObject:
     def __init__(self):
         rospy.init_node("move_to_object_node")
         rospy.sleep(5.0)
+
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
@@ -30,32 +29,28 @@ class MoveAndVisualizeObject:
         self.group.set_planning_time(5)
         self.group.set_max_velocity_scaling_factor(0.3)
         self.group.set_max_acceleration_scaling_factor(0.3)
-        self.detected_color = "green" 
 
+        self.detected_color = "green"
+        self.last_size = (0.06, 0.05, 0.06)
+        self.last_position = None
+        self.post_pick_pose = self.load_post_pick_pose()
 
         self.marker_pub = rospy.Publisher("/visualization_marker", Marker, queue_size=1)
         self.gripper_pub = rospy.Publisher("/sgr532/gripper/command", Float64, queue_size=10)
         self.arm_pub = rospy.Publisher("/sgr532/joint/commands", ArmRadControl, queue_size=10)
 
-        rospy.Subscriber("/object_position", PointStamped, self.callback)
+        rospy.Subscriber("/object_position", PointStamped, self.position_callback)
         rospy.Subscriber("/object_size", PointStamped, self.size_callback)
         rospy.Subscriber("/object_color", String, self.color_callback)
 
-
-        self.last_size = (0.06, 0.05, 0.06) 
-        self.post_pick_pose = self.load_post_pick_pose()
-        self.busy = False\
-
         rospy.loginfo("MoveToObject + Visualization node ready.")
-        rospy.spin()
-
-        # Wait until the gripper command topic has at least one subscriber
         while self.gripper_pub.get_num_connections() == 0 and not rospy.is_shutdown():
             rospy.sleep(0.1)
 
         self.gripper_pub.publish(Float64(data=0))
         rospy.loginfo("✊ Gripper opened.")
 
+        self.interactive_loop()
 
     def load_post_pick_pose(self):
         config_path = rospy.get_param("~pose_config", "")
@@ -67,49 +62,61 @@ class MoveAndVisualizeObject:
             data = yaml.safe_load(f)
             return data.get("post_pick_rad", [0.0, 0.3, 0.0, 0.4, -1.8, 0.0])
 
+    def position_callback(self, msg):
+        try:
+            transform = self.tf_buffer.lookup_transform("sgr532/base_link", msg.header.frame_id, rospy.Time(0), rospy.Duration(1.0))
+            transformed = tf2_geometry_msgs.do_transform_point(msg, transform)
+
+            # Offset
+            transformed.point.y += 0.042
+            transformed.point.z += 0.020
+            self.last_position = transformed
+
+            rospy.loginfo("📍 Updated object position: (%.3f, %.3f, %.3f)",
+                          transformed.point.x, transformed.point.y, transformed.point.z)
+            self.publish_marker(transformed)
+            self.add_collision_box(transformed)
+
+        except Exception as e:
+            rospy.logwarn("TF Transform failed: %s", str(e))
+
     def size_callback(self, msg):
         self.last_size = (msg.point.x, msg.point.x, msg.point.y)
 
     def color_callback(self, msg):
         self.detected_color = msg.data
 
-    def callback(self, msg):
-        if self.busy:
-            return
-        self.busy = True
-        try:
-            transform = self.tf_buffer.lookup_transform(
-                "sgr532/base_link", msg.header.frame_id,
-                rospy.Time(0), rospy.Duration(1.0)
-            )
-            transformed = tf2_geometry_msgs.do_transform_point(msg, transform)
+    def interactive_loop(self):
+        while not rospy.is_shutdown():
+            input("🔁 Press [ENTER] to pick latest detected object...")
 
-            y_offset_correction = 0.030
-            z_offset_correction = 0.025
-            transformed.point.y += y_offset_correction
-            transformed.point.z += z_offset_correction
+            if not self.last_position:
+                rospy.logwarn("❌ No object detected yet.")
+                continue
 
-            rospy.loginfo("Corrected object point: (%.3f, %.3f, %.3f)",
-                          transformed.point.x, transformed.point.y, transformed.point.z)
-
-            self.publish_marker(transformed)
-
+            # Open gripper before attempt
+            self.gripper_pub.publish(Float64(data=0))
+            rospy.loginfo("✋ Gripper opened.")
             rospy.sleep(1.0)
-            self.go_to_xyz(transformed.point.x, transformed.point.y, transformed.point.z)
 
-            self.gripper_pub.publish(Float64(data=0.5))
-            rospy.loginfo("✊ Gripper closed.")
+            z_lifted = self.last_position.point.z + 0.023
+            success = self.go_to_xyz(self.last_position.point.x, self.last_position.point.y, z_lifted)
 
-            rospy.sleep(5.0)
-            return_pose = ArmRadControl()
-            return_pose.rad = self.post_pick_pose 
-            self.arm_pub.publish(return_pose)
-            rospy.loginfo("↩️ Returned to pre-pick pose.")
-            rospy.sleep(5.0)
-            self.busy = False   
+            if success:
+                self.gripper_pub.publish(Float64(data=0.5))
+                rospy.loginfo("✊ Gripper closed.")
+                rospy.sleep(8.0)
 
-        except Exception as e:
-            rospy.logwarn("TF Transform failed: %s", str(e))
+                return_pose = ArmRadControl()
+                return_pose.rad = self.post_pick_pose
+                self.arm_pub.publish(return_pose)
+                rospy.loginfo("↩️ Returned to post-pick pose.")
+                rospy.sleep(5.0)
+            else:
+                rospy.logwarn("🚫 Skipping gripper close due to failed planning.")
+
+            self.scene.remove_world_object("object_box")
+            rospy.loginfo("🧹 Removed collision box from scene")
 
     def go_to_xyz(self, x, y, z):
         pose = PoseStamped()
@@ -130,13 +137,26 @@ class MoveAndVisualizeObject:
         self.group.clear_pose_targets()
 
         if success:
-            rospy.loginfo("Move executed.")
+            rospy.loginfo("✅ Move executed.")
         else:
-            rospy.logwarn("Planning failed.")
+            rospy.logwarn("⚠️ Planning failed.")
+        return success
+
+    def add_collision_box(self, point_msg):
+        box_pose = PoseStamped()
+        box_pose.header.frame_id = "sgr532/base_link"
+        box_pose.pose.position.x = point_msg.point.x
+        box_pose.pose.position.y = point_msg.point.y
+        box_pose.pose.position.z = point_msg.point.z - (self.last_size[2] / 2.0)
+        box_pose.pose.orientation.w = 1.0
+
+        self.scene.remove_world_object("object_box")
+        rospy.sleep(0.1)
+        self.scene.add_box("object_box", box_pose, size=self.last_size)
+        rospy.loginfo("🧱 Collision box added to planning scene.")
+        rospy.sleep(0.2)
 
     def publish_marker(self, point_msg):
-        box_length, box_width, box_height = self.last_size
-
         marker = Marker()
         marker.header.frame_id = point_msg.header.frame_id
         marker.header.stamp = rospy.Time.now()
@@ -147,12 +167,11 @@ class MoveAndVisualizeObject:
 
         marker.pose.position.x = point_msg.point.x
         marker.pose.position.y = point_msg.point.y
-        marker.pose.position.z = point_msg.point.z - (box_height / 2.0)
-
+        marker.pose.position.z = point_msg.point.z - (self.last_size[2] / 2.0)
         marker.pose.orientation.w = 1.0
-        marker.scale.x = box_length
-        marker.scale.y = box_width
-        marker.scale.z = box_height
+
+        marker.scale.x, marker.scale.y, marker.scale.z = self.last_size
+
         color_map = {
             "red": (1.0, 0.0, 0.0),
             "green": (0.0, 1.0, 0.0),
@@ -166,7 +185,6 @@ class MoveAndVisualizeObject:
         marker.color.r = r
         marker.color.g = g
         marker.color.b = b
-
 
         self.marker_pub.publish(marker)
 
